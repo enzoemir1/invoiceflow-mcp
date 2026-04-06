@@ -103,13 +103,21 @@ export async function generateInvoicePDF(invoice: Invoice, client?: Client): Pro
 
   y -= 20;
 
-  for (const item of invoice.line_items) {
+  const maxLineItems = Math.min(invoice.line_items.length, 25); // Cap at 25 items per page
+  for (let i = 0; i < maxLineItems; i++) {
+    const item = invoice.line_items[i];
+    if (y < 180) break; // Stop before overlapping totals section
+
     const desc = item.description.length > 40 ? item.description.slice(0, 37) + '...' : item.description;
     page.drawText(desc, { x: colX.desc, y, size: 9, font, color: COLORS.black });
     page.drawText(item.quantity.toString(), { x: colX.qty, y, size: 9, font, color: COLORS.black });
     page.drawText(formatCurrency(item.unit_price, invoice.currency), { x: colX.price, y, size: 9, font, color: COLORS.black });
     page.drawText(`${item.tax_rate}%`, { x: colX.tax, y, size: 9, font, color: COLORS.black });
     page.drawText(formatCurrency(item.amount, invoice.currency), { x: colX.amount, y, size: 9, font: fontBold, color: COLORS.black });
+    y -= 18;
+  }
+  if (invoice.line_items.length > maxLineItems) {
+    page.drawText(`... and ${invoice.line_items.length - maxLineItems} more items`, { x: colX.desc, y, size: 8, font, color: COLORS.light });
     y -= 18;
   }
 

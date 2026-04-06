@@ -6,9 +6,7 @@ import { z } from 'zod/v4';
 import {
   InvoiceCreateInputSchema,
   InvoiceListInputSchema,
-  InvoiceStatusSchema,
   ClientCreateInputSchema,
-  CurrencySchema,
   PaymentMethodSchema,
 } from './models/invoice.js';
 import { createInvoice } from './tools/create.js';
@@ -128,7 +126,7 @@ server.registerTool(
             },
             body: JSON.stringify({
               personalizations: [{ to: [{ email: invoice.client_email }] }],
-              from: { email: 'invoices@automatia.dev', name: 'InvoiceFlow' },
+              from: { email: process.env.SENDGRID_FROM_EMAIL ?? 'noreply@invoiceflow.dev', name: process.env.SENDGRID_FROM_NAME ?? 'InvoiceFlow' },
               subject: `Invoice ${invoice.invoice_number} from ${invoice.client_name}`,
               content: [{
                 type: 'text/plain',
@@ -364,13 +362,38 @@ server.registerTool(
       }
 
       const invoice = matches[0];
+      const now = new Date().toISOString();
       await storage.updateInvoice(invoice.id, {
         status: 'paid',
         amount_paid: invoice.total,
         amount_due: 0,
-        paid_date: new Date().toISOString(),
+        paid_date: now,
         payment_method: payment_method ?? 'other',
       });
+
+      // Update client payment history
+      const client = await storage.getClientById(invoice.client_id);
+      if (client) {
+        const history = client.payment_history ?? {
+          total_invoices: 0, paid_invoices: 0, avg_days_to_payment: null, late_payment_count: 0, total_revenue: 0,
+        };
+        const daysToPayment = (Date.now() - new Date(invoice.issue_date).getTime()) / (1000 * 60 * 60 * 24);
+        const isLate = new Date() > new Date(invoice.due_date);
+        const newPaidCount = history.paid_invoices + 1;
+        const newAvgDays = history.avg_days_to_payment != null
+          ? (history.avg_days_to_payment * history.paid_invoices + daysToPayment) / newPaidCount
+          : daysToPayment;
+
+        await storage.updateClient(invoice.client_id, {
+          payment_history: {
+            total_invoices: history.total_invoices,
+            paid_invoices: newPaidCount,
+            avg_days_to_payment: Math.round(newAvgDays * 10) / 10,
+            late_payment_count: history.late_payment_count + (isLate ? 1 : 0),
+            total_revenue: history.total_revenue + invoice.total,
+          },
+        });
+      }
 
       return {
         content: [{

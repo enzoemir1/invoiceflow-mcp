@@ -2,18 +2,6 @@ import type { Invoice, Client, RiskAssessment, RiskFactor } from '../models/invo
 import { storage } from './storage.js';
 import { NotFoundError, validateUUID } from '../utils/errors.js';
 
-// Industry-specific average payment delays (days)
-const INDUSTRY_RISK: Record<string, number> = {
-  construction: 25,
-  government: 30,
-  healthcare: 20,
-  retail: 10,
-  technology: 8,
-  consulting: 12,
-  manufacturing: 18,
-  education: 22,
-};
-
 function assessAmountRisk(amount: number): { score: number; factor: RiskFactor } {
   let score: number;
   let detail: string;

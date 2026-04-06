@@ -85,5 +85,18 @@ export async function createInvoice(input: InvoiceCreateInput): Promise<Invoice>
     updated_at: now.toISOString(),
   };
 
-  return storage.addInvoice(invoice);
+  const saved = await storage.addInvoice(invoice);
+
+  // Update client's total_invoices count
+  const currentHistory = client.payment_history ?? {
+    total_invoices: 0, paid_invoices: 0, avg_days_to_payment: null, late_payment_count: 0, total_revenue: 0,
+  };
+  await storage.updateClient(client.id, {
+    payment_history: {
+      ...currentHistory,
+      total_invoices: currentHistory.total_invoices + 1,
+    },
+  });
+
+  return saved;
 }
