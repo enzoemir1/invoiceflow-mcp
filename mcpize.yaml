@@ -1,0 +1,32 @@
+version: 1
+name: invoiceflow-mcp
+description: "AI-powered invoice automation. Create professional PDF invoices, predict late payment risk, auto-send reminders, reconcile Stripe/PayPal payments, and track cash flow."
+runtime: typescript
+entry: src/index.ts
+
+build:
+  install: npm ci
+  command: npm run build
+
+startCommand:
+  type: http
+  command: node dist/index.js
+  env:
+    MCPIZE: "true"
+    PORT: "8080"
+
+secrets:
+  - name: SENDGRID_API_KEY
+    required: false
+    description: "SendGrid API key for sending invoices and reminders via email"
+
+credentials:
+  - name: STRIPE_API_KEY
+    required: false
+    description: "Your Stripe secret key for payment reconciliation"
+  - name: PAYPAL_CLIENT_ID
+    required: false
+    description: "Your PayPal client ID for payment reconciliation"
+  - name: PAYPAL_CLIENT_SECRET
+    required: false
+    description: "Your PayPal client secret for payment reconciliation"

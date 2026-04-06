@@ -1,0 +1,89 @@
+import { v4 as uuidv4 } from 'uuid';
+import type { Invoice, InvoiceCreateInput, LineItem } from '../models/invoice.js';
+import { storage } from '../services/storage.js';
+import { NotFoundError, validateUUID } from '../utils/errors.js';
+
+function computeLineItem(input: {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  discount_percent?: number;
+}): LineItem {
+  const taxRate = input.tax_rate ?? 0;
+  const discountPct = input.discount_percent ?? 0;
+  const baseAmount = input.quantity * input.unit_price;
+  const discountAmount = baseAmount * (discountPct / 100);
+  const taxableAmount = baseAmount - discountAmount;
+  const taxAmount = taxableAmount * (taxRate / 100);
+  const amount = Math.round((taxableAmount + taxAmount) * 100) / 100;
+
+  return {
+    description: input.description,
+    quantity: input.quantity,
+    unit_price: input.unit_price,
+    tax_rate: taxRate,
+    discount_percent: discountPct,
+    amount,
+  };
+}
+
+export async function createInvoice(input: InvoiceCreateInput): Promise<Invoice> {
+  validateUUID(input.client_id, 'client');
+
+  const client = await storage.getClientById(input.client_id);
+  if (!client) throw new NotFoundError('Client', input.client_id);
+
+  const lineItems = input.line_items.map(computeLineItem);
+
+  const subtotal = lineItems.reduce((sum, item) => {
+    return sum + item.quantity * item.unit_price;
+  }, 0);
+
+  const discountTotal = lineItems.reduce((sum, item) => {
+    return sum + item.quantity * item.unit_price * (item.discount_percent / 100);
+  }, 0);
+
+  const taxTotal = lineItems.reduce((sum, item) => {
+    const taxable = item.quantity * item.unit_price * (1 - item.discount_percent / 100);
+    return sum + taxable * (item.tax_rate / 100);
+  }, 0);
+
+  const total = Math.round((subtotal - discountTotal + taxTotal) * 100) / 100;
+
+  const now = new Date();
+  const issueDate = input.issue_date ?? now.toISOString();
+  const dueDate = input.due_date ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const invoiceNumber = await storage.nextInvoiceNumber();
+
+  const invoice: Invoice = {
+    id: uuidv4(),
+    invoice_number: invoiceNumber,
+    client_id: client.id,
+    client_name: client.name,
+    client_email: client.email,
+    status: 'draft',
+    currency: input.currency ?? 'USD',
+    line_items: lineItems,
+    subtotal: Math.round(subtotal * 100) / 100,
+    tax_total: Math.round(taxTotal * 100) / 100,
+    discount_total: Math.round(discountTotal * 100) / 100,
+    total,
+    amount_paid: 0,
+    amount_due: total,
+    issue_date: issueDate,
+    due_date: dueDate,
+    paid_date: null,
+    notes: input.notes,
+    terms: input.terms,
+    payment_method: null,
+    risk_score: null,
+    risk_action: null,
+    reminder_count: 0,
+    last_reminder_at: null,
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+
+  return storage.addInvoice(invoice);
+}
