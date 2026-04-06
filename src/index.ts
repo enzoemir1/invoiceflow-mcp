@@ -481,21 +481,21 @@ async function main() {
 
   if (isHTTP) {
     const port = parseInt(process.env.PORT ?? '8080', 10);
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     const httpServer = createServer(async (req, res) => {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', version: '1.0.0' }));
         return;
       }
-      if (req.method === 'POST' && req.url === '/mcp') {
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        await server.connect(transport);
+      if ((req.method === 'POST' || req.method === 'GET' || req.method === 'DELETE') && req.url === '/mcp') {
         await transport.handleRequest(req, res);
         return;
       }
       res.writeHead(404);
       res.end('Not Found');
     });
+    await server.connect(transport);
     httpServer.listen(port, () => {
       console.error(`InvoiceFlow MCP Server v1.0.0 running on HTTP port ${port}`);
     });
