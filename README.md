@@ -112,13 +112,65 @@ Scores invoices 0-100 using 4 weighted factors:
 
 ---
 
-## Integrations
+## Configuration
 
-- **SendGrid** -- Set SENDGRID_API_KEY for email invoices/reminders
-- **Stripe** -- Set STRIPE_API_KEY for payment reconciliation
-- **PayPal** -- Set PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET
+Copy `.env.example` to `.env` and set the variables you need:
 
-## Currencies
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SENDGRID_API_KEY` | For email | Send invoices and reminders via SendGrid |
+| `STRIPE_API_KEY` | For Stripe | Reconcile payments from Stripe |
+| `PAYPAL_CLIENT_ID` | For PayPal | Reconcile payments from PayPal |
+| `PAYPAL_CLIENT_SECRET` | For PayPal | PayPal API authentication |
+
+> All integrations are optional. InvoiceFlow works fully offline for invoice creation, risk scoring, and cash flow reporting.
+
+## Usage Examples
+
+### Create a client and invoice
+
+```
+> Create a client "Acme Corp" with email billing@acme.com
+
+✓ Client created: Acme Corp (id: 3f2a...)
+
+> Create an invoice for Acme Corp: 10 hours consulting at $150/hr, 20% tax
+
+✓ Invoice INV-2026-0001 created
+  Subtotal: $1,500.00 | Tax: $300.00 | Total: $1,800.00
+```
+
+### Assess payment risk
+
+```
+> What's the risk score for invoice INV-2026-0001?
+
+Risk Score: 42/100 (Medium)
+  - Invoice Amount: 25 (moderate amount)
+  - Client History: 50 (new client)
+  - Due Date: 15 (due in 28 days)
+  - Reminders: 10 (none sent)
+Recommended: Send an early reminder with a polite tone.
+```
+
+### Generate cash flow report
+
+```
+> Show me the cash flow report
+
+April 2026:
+  Total Invoiced: $12,400.00
+  Collected: $8,200.00 (66.1%)
+  Outstanding: $4,200.00
+  Overdue: $1,800.00
+  Projected (30d): $2,400.00
+```
+
+## Supported Currencies
 
 USD, EUR, GBP, CAD, AUD, JPY, CHF, TRY, BRL, INR
 
@@ -143,6 +195,19 @@ npm run dev        # Hot reload
 npm run build      # Production build
 npm test           # Run tests
 npm run inspect    # MCP Inspector
+```
+
+### Testing
+
+Tests cover the core business logic:
+
+- **Storage** — CRUD operations, filtering, sequential invoice numbers
+- **Risk Model** — AI scoring engine with 4 weighted factors, risk classification
+- **Cash Flow** — Report generation, collection rates, projections, client breakdown
+
+```bash
+npm test           # Run all tests
+npx vitest --watch # Watch mode
 ```
 
 ## License
