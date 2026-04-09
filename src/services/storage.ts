@@ -14,6 +14,7 @@ class AsyncLock {
   }
 }
 
+/** JSON file-based storage with AsyncLock for concurrent write protection. Supports optional custom data directory for test isolation. */
 export class Storage {
   private readonly dataDir: string;
   private readonly invoicesPath: string;
@@ -164,4 +165,5 @@ export class Storage {
   }
 }
 
+/** Default global storage instance using process.cwd()/data directory. */
 export const storage = new Storage();
