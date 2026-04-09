@@ -1,0 +1,37 @@
+[
+  {
+    "id": "0fe3d56f-d07d-4c1c-a5a5-c9e276fd096b",
+    "invoice_number": "INV-2026-0001",
+    "client_id": "d9ba1fa4-a086-4e6e-b317-56637b94c746",
+    "client_name": "Test Corp",
+    "client_email": "test@corp.com",
+    "status": "sent",
+    "currency": "USD",
+    "line_items": [
+      {
+        "description": "Service",
+        "quantity": 10,
+        "unit_price": 100,
+        "tax_rate": 10,
+        "discount_percent": 5,
+        "amount": 1045
+      }
+    ],
+    "subtotal": 1000,
+    "tax_total": 95,
+    "discount_total": 50,
+    "total": 1045,
+    "amount_paid": 0,
+    "amount_due": 1045,
+    "issue_date": "2026-04-06T15:48:04.991Z",
+    "due_date": "2026-05-06T15:48:04.997Z",
+    "paid_date": null,
+    "payment_method": null,
+    "risk_score": null,
+    "risk_action": null,
+    "reminder_count": 0,
+    "last_reminder_at": null,
+    "created_at": "2026-04-06T15:48:04.991Z",
+    "updated_at": "2026-04-06T15:48:04.998Z"
+  }
+]

@@ -1,9 +1,10 @@
 import type { CashflowReport } from '../models/invoice.js';
-import { storage } from './storage.js';
+import { storage as defaultStorage, Storage } from './storage.js';
 
-export async function generateCashflowReport(): Promise<CashflowReport> {
-  const invoices = await storage.getAllInvoices();
-  const clients = await storage.getAllClients();
+export async function generateCashflowReport(store?: Storage): Promise<CashflowReport> {
+  const s = store ?? defaultStorage;
+  const invoices = await s.getAllInvoices();
+  const clients = await s.getAllClients();
   const now = new Date();
 
   let totalInvoiced = 0;

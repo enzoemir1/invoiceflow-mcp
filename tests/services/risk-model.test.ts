@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
-import { storage } from '../../src/services/storage.js';
+import { Storage } from '../../src/services/storage.js';
 import { assessInvoiceRisk } from '../../src/services/risk-model.js';
 import type { Invoice, Client } from '../../src/models/invoice.js';
+
+const TEST_DIR = path.join(process.cwd(), 'data-test-risk');
 
 function makeClient(overrides: Partial<Client> = {}): Client {
   const now = new Date().toISOString();
@@ -50,14 +53,10 @@ function makeInvoice(clientId: string, overrides: Partial<Invoice> = {}): Invoic
 }
 
 describe('Risk Model', () => {
-  beforeEach(() => {
-    // Reset singleton so init() re-creates the data directory
-    (storage as any).initialized = false;
-  });
+  let store: Storage;
 
-  afterEach(async () => {
-    try { await fs.rm('data', { recursive: true, force: true }); } catch {}
-  });
+  beforeEach(() => { store = new Storage(TEST_DIR); });
+  afterEach(async () => { try { await fs.rm(TEST_DIR, { recursive: true, force: true }); } catch {} });
 
   it('should return low risk for a small invoice with excellent client history', async () => {
     const client = makeClient({
@@ -69,7 +68,7 @@ describe('Risk Model', () => {
         total_revenue: 10000,
       },
     });
-    await storage.addClient(client);
+    await store.addClient(client);
 
     const invoice = makeInvoice(client.id, {
       total: 200,
@@ -77,25 +76,25 @@ describe('Risk Model', () => {
       due_date: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
       reminder_count: 0,
     });
-    await storage.addInvoice(invoice);
+    await store.addInvoice(invoice);
 
-    const result = await assessInvoiceRisk(invoice.id);
+    const result = await assessInvoiceRisk(invoice.id, store);
     expect(result.risk_score).toBeLessThanOrEqual(30);
     expect(result.risk_level).toBe('low');
   });
 
   it('should return higher risk for a high-value invoice with a new client', async () => {
     const client = makeClient();
-    await storage.addClient(client);
+    await store.addClient(client);
 
     const invoice = makeInvoice(client.id, {
       total: 15000,
       amount_due: 15000,
       due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
     });
-    await storage.addInvoice(invoice);
+    await store.addInvoice(invoice);
 
-    const result = await assessInvoiceRisk(invoice.id);
+    const result = await assessInvoiceRisk(invoice.id, store);
     expect(result.risk_score).toBeGreaterThan(30);
   });
 
@@ -109,7 +108,7 @@ describe('Risk Model', () => {
         total_revenue: 5000,
       },
     });
-    await storage.addClient(client);
+    await store.addClient(client);
 
     const invoice = makeInvoice(client.id, {
       total: 3000,
@@ -117,9 +116,9 @@ describe('Risk Model', () => {
       due_date: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
       reminder_count: 3,
     });
-    await storage.addInvoice(invoice);
+    await store.addInvoice(invoice);
 
-    const result = await assessInvoiceRisk(invoice.id);
+    const result = await assessInvoiceRisk(invoice.id, store);
     expect(result.risk_score).toBeGreaterThan(60);
     expect(result.risk_level).toBe('high');
   });
@@ -134,7 +133,7 @@ describe('Risk Model', () => {
         total_revenue: 8000,
       },
     });
-    await storage.addClient(client);
+    await store.addClient(client);
 
     const invoiceNoReminders = makeInvoice(client.id, {
       total: 500,
@@ -146,11 +145,11 @@ describe('Risk Model', () => {
       amount_due: 500,
       reminder_count: 5,
     });
-    await storage.addInvoice(invoiceNoReminders);
-    await storage.addInvoice(invoiceManyReminders);
+    await store.addInvoice(invoiceNoReminders);
+    await store.addInvoice(invoiceManyReminders);
 
-    const resultLow = await assessInvoiceRisk(invoiceNoReminders.id);
-    const resultHigh = await assessInvoiceRisk(invoiceManyReminders.id);
+    const resultLow = await assessInvoiceRisk(invoiceNoReminders.id, store);
+    const resultHigh = await assessInvoiceRisk(invoiceManyReminders.id, store);
 
     expect(resultHigh.risk_score).toBeGreaterThan(resultLow.risk_score);
   });
@@ -174,16 +173,16 @@ describe('Risk Model', () => {
         total_revenue: 3000,
       },
     });
-    await storage.addClient(goodClient);
-    await storage.addClient(badClient);
+    await store.addClient(goodClient);
+    await store.addClient(badClient);
 
     const invoiceGood = makeInvoice(goodClient.id, { total: 1000, amount_due: 1000 });
     const invoiceBad = makeInvoice(badClient.id, { total: 1000, amount_due: 1000 });
-    await storage.addInvoice(invoiceGood);
-    await storage.addInvoice(invoiceBad);
+    await store.addInvoice(invoiceGood);
+    await store.addInvoice(invoiceBad);
 
-    const resultGood = await assessInvoiceRisk(invoiceGood.id);
-    const resultBad = await assessInvoiceRisk(invoiceBad.id);
+    const resultGood = await assessInvoiceRisk(invoiceGood.id, store);
+    const resultBad = await assessInvoiceRisk(invoiceBad.id, store);
 
     expect(resultBad.risk_score).toBeGreaterThan(resultGood.risk_score);
   });
@@ -198,7 +197,7 @@ describe('Risk Model', () => {
         total_revenue: 100000,
       },
     });
-    await storage.addClient(client);
+    await store.addClient(client);
 
     const safeInvoice = makeInvoice(client.id, {
       total: 100,
@@ -206,19 +205,19 @@ describe('Risk Model', () => {
       due_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       reminder_count: 0,
     });
-    await storage.addInvoice(safeInvoice);
-    const safeResult = await assessInvoiceRisk(safeInvoice.id);
+    await store.addInvoice(safeInvoice);
+    const safeResult = await assessInvoiceRisk(safeInvoice.id, store);
     expect(safeResult.risk_level).toBe('low');
     expect(safeResult.risk_score).toBeLessThanOrEqual(30);
   });
 
   it('should return complete risk assessment structure', async () => {
     const client = makeClient();
-    await storage.addClient(client);
+    await store.addClient(client);
     const invoice = makeInvoice(client.id);
-    await storage.addInvoice(invoice);
+    await store.addInvoice(invoice);
 
-    const result = await assessInvoiceRisk(invoice.id);
+    const result = await assessInvoiceRisk(invoice.id, store);
 
     expect(result).toHaveProperty('invoice_id', invoice.id);
     expect(result).toHaveProperty('risk_score');

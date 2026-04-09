@@ -1,5 +1,5 @@
 import type { Invoice, Client, RiskAssessment, RiskFactor } from '../models/invoice.js';
-import { storage } from './storage.js';
+import { storage as defaultStorage, Storage } from './storage.js';
 import { NotFoundError, validateUUID } from '../utils/errors.js';
 
 function assessAmountRisk(amount: number): { score: number; factor: RiskFactor } {
@@ -160,13 +160,14 @@ function calculateNextReminder(score: number, invoice: Invoice): string | null {
   return next.toISOString();
 }
 
-export async function assessInvoiceRisk(invoiceId: string): Promise<RiskAssessment> {
+export async function assessInvoiceRisk(invoiceId: string, store?: Storage): Promise<RiskAssessment> {
   validateUUID(invoiceId, 'invoice');
 
-  const invoice = await storage.getInvoiceById(invoiceId);
+  const s = store ?? defaultStorage;
+  const invoice = await s.getInvoiceById(invoiceId);
   if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
-  const client = await storage.getClientById(invoice.client_id);
+  const client = await s.getClientById(invoice.client_id);
   if (!client) throw new NotFoundError('Client', invoice.client_id);
 
   const amountResult = assessAmountRisk(invoice.total);
@@ -188,7 +189,7 @@ export async function assessInvoiceRisk(invoiceId: string): Promise<RiskAssessme
   const nextReminder = calculateNextReminder(totalScore, invoice);
 
   // Update invoice with risk data
-  await storage.updateInvoice(invoiceId, {
+  await s.updateInvoice(invoiceId, {
     risk_score: totalScore,
     risk_action: recommendedAction,
   });
