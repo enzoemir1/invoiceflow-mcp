@@ -1,0 +1,24 @@
+{
+  "name": "invoiceflow-mcp",
+  "displayName": "InvoiceFlow MCP",
+  "description": "AI invoice automation with PDF generation, late payment risk prediction, payment reminders via SendGrid, Stripe/PayPal reconciliation, and cash flow analytics. 10 tools, 4 resources.",
+  "version": "1.2.0",
+  "tools": [
+    { "name": "client_manage", "description": "Create or update client profiles" },
+    { "name": "invoice_create", "description": "Generate invoices with line items, tax, and discounts" },
+    { "name": "invoice_list", "description": "Filter and paginate invoices" },
+    { "name": "invoice_send", "description": "Email invoices via SendGrid" },
+    { "name": "invoice_mark_paid", "description": "Mark partial or full payment" },
+    { "name": "invoice_remind", "description": "Send escalating payment reminders" },
+    { "name": "invoice_risk", "description": "AI payment risk prediction (0-100)" },
+    { "name": "cashflow_report", "description": "Cash flow analytics with 30-day projection" },
+    { "name": "payment_reconcile", "description": "Match Stripe/PayPal payments to invoices" },
+    { "name": "config_scoring", "description": "Configure risk scoring parameters" }
+  ],
+  "resources": [
+    { "uri": "invoices://recent", "description": "Latest invoices" },
+    { "uri": "invoices://overdue", "description": "Overdue invoices" },
+    { "uri": "invoices://cashflow", "description": "Cash flow summary" },
+    { "uri": "invoices://clients", "description": "Client directory" }
+  ]
+}
