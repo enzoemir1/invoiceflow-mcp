@@ -29,6 +29,7 @@ server.registerTool(
     title: 'Manage Client',
     description: 'Create a new client or update an existing one. Clients are needed before creating invoices.',
     inputSchema: ClientCreateInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async (input) => {
     try {
@@ -50,6 +51,7 @@ server.registerTool(
     title: 'Create Invoice',
     description: 'Create a new invoice for a client with line items. Auto-calculates subtotal, tax, discounts, and total. Generates a unique invoice number (INV-YYYY-NNNN).',
     inputSchema: InvoiceCreateInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async (input) => {
     try {
@@ -74,6 +76,7 @@ server.registerTool(
     title: 'List Invoices',
     description: 'List and filter invoices by status, client, amount range, date range, or overdue status. Supports pagination.',
     inputSchema: InvoiceListInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async (input) => {
     try {
@@ -308,6 +311,7 @@ server.registerTool(
     title: 'Cash Flow Report',
     description: 'Generate a cash flow summary: total invoiced, collected, outstanding, overdue, collection rate, average days to payment, 30-day projection, breakdown by status and client.',
     inputSchema: z.object({}),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async () => {
     try {
@@ -473,6 +477,30 @@ server.registerResource(
       contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(clients, null, 2) }],
     };
   }
+);
+
+// ━━━ PROMPTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+server.registerPrompt(
+  'payment_followup',
+  { title: 'Payment Follow-up', description: 'Review overdue invoices and generate a prioritized follow-up plan based on AI risk scores and payment history.' },
+  async () => ({
+    messages: [{
+      role: 'assistant' as const,
+      content: { type: 'text' as const, text: 'I\'ll help you follow up on overdue payments.\n\n1. First, I\'ll use `invoice_list` to find overdue invoices\n2. Run `invoice_risk` on each to assess payment probability\n3. Prioritize by amount and risk level\n4. Generate reminder messages for each\n\nShall I start the analysis?' },
+    }],
+  }),
+);
+
+server.registerPrompt(
+  'cashflow_summary',
+  { title: 'Cash Flow Summary', description: 'Generate a comprehensive cash flow report with collection rates, outstanding amounts, and 30-day projections.' },
+  async () => ({
+    messages: [{
+      role: 'assistant' as const,
+      content: { type: 'text' as const, text: 'Let me prepare your cash flow summary.\n\n1. I\'ll run `cashflow_report` for current period metrics\n2. Analyze collection rate trends\n3. Identify clients with highest outstanding balances\n4. Project next 30 days of expected income\n\nReady to generate the report?' },
+    }],
+  }),
 );
 
 // ━━━ SMITHERY SANDBOX ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
