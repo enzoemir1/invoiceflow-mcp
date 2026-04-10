@@ -17,9 +17,11 @@ import { generateCashflowReport } from './services/cashflow.js';
 import { storage } from './services/storage.js';
 import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js';
 
+const SERVER_VERSION = '1.3.1';
+
 const server = new McpServer({
   name: 'invoiceflow-mcp',
-  version: '1.0.0',
+  version: SERVER_VERSION,
 });
 
 // ━━━ TOOL: client_manage ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -27,7 +29,7 @@ server.registerTool(
   'client_manage',
   {
     title: 'Manage Client',
-    description: 'Create a new client or update an existing one. Clients are needed before creating invoices.',
+    description: 'Create or upsert a client record used by invoice_create. Accepts name, email, company, address, phone, tax_id, and default_currency. Returns the stored client object including the generated id (UUID), created_at, and an empty payment_history that will be populated as invoices are paid. If a client with the same email already exists, the existing record is returned unchanged — safe to call repeatedly.',
     inputSchema: ClientCreateInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -49,7 +51,7 @@ server.registerTool(
   'invoice_create',
   {
     title: 'Create Invoice',
-    description: 'Create a new invoice for a client with line items. Auto-calculates subtotal, tax, discounts, and total. Generates a unique invoice number (INV-YYYY-NNNN).',
+    description: 'Create a new invoice for an existing client. Input: client_id (UUID), line_items (array of {description, quantity, unit_price, tax_rate?}), due_date (ISO), currency, optional discount_percent and notes. Auto-calculates subtotal, tax, discount, and total; generates a sequential invoice_number in format INV-YYYY-NNNN; sets status="draft". Returns the full invoice object ready for invoice_send.',
     inputSchema: InvoiceCreateInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -74,7 +76,7 @@ server.registerTool(
   'invoice_list',
   {
     title: 'List Invoices',
-    description: 'List and filter invoices by status, client, amount range, date range, or overdue status. Supports pagination.',
+    description: 'Search and filter invoices. Optional filters: status ("draft"|"sent"|"viewed"|"paid"|"overdue"|"cancelled"|"refunded"), client_id, min_amount, max_amount, date_from/date_to (ISO dates), overdue_only (boolean). Pagination via limit (default 50, max 200) and offset. Returns {total, invoices[]} where each invoice includes full line_items and payment state. Use this to build dashboards or drive invoice_remind/invoice_risk workflows.',
     inputSchema: InvoiceListInputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -96,11 +98,12 @@ server.registerTool(
   'invoice_send',
   {
     title: 'Send Invoice',
-    description: 'Send an invoice to the client via email. Generates a PDF and sends it. Updates status to "sent".',
+    description: 'Generate the invoice PDF and deliver it to the client. Always generates the PDF and marks the invoice status="sent". Email delivery via SendGrid is attempted automatically when the SENDGRID_API_KEY environment variable is set; without it the PDF is still generated and the status still advances so the caller can handle delivery out-of-band. Returns a confirmation message with the PDF size.',
     inputSchema: z.object({
-      invoice_id: z.string().describe('The invoice ID to send'),
-      message: z.string().optional().describe('Custom message to include in the email'),
+      invoice_id: z.string().uuid().describe('UUID of an existing invoice (from invoice_create or invoice_list)'),
+      message: z.string().optional().describe('Custom body text for the email (default is a summary of amount and due date)'),
     }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   async ({ invoice_id, message }) => {
     try {
@@ -166,12 +169,13 @@ server.registerTool(
   'invoice_mark_paid',
   {
     title: 'Mark Invoice Paid',
-    description: 'Mark an invoice as fully or partially paid. Updates amount_paid and status.',
+    description: 'Record a full or partial payment against an invoice. Updates amount_paid and amount_due; sets status="paid" only when the outstanding balance reaches zero. As a side effect, a fully-paid invoice updates the client payment_history (total_revenue, paid_invoices, avg_days_to_payment, late_payment_count) which invoice_risk then uses for future predictions. Returns a confirmation with the paid amount and remaining balance.',
     inputSchema: z.object({
-      invoice_id: z.string().describe('The invoice ID'),
-      amount: z.number().min(0).optional().describe('Amount paid (defaults to full amount due)'),
-      payment_method: PaymentMethodSchema.optional().describe('How the payment was made'),
+      invoice_id: z.string().uuid().describe('UUID of the invoice to update'),
+      amount: z.number().positive().optional().describe('Amount paid in invoice currency; omit to settle the full remaining balance'),
+      payment_method: PaymentMethodSchema.optional().describe('How the payment was received (stripe|paypal|bank_transfer|credit_card|cash|check|crypto|other)'),
     }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   async ({ invoice_id, amount, payment_method }) => {
     try {
@@ -235,12 +239,13 @@ server.registerTool(
 server.registerTool(
   'invoice_remind',
   {
-    title: 'Send Reminder',
-    description: 'Send a payment reminder for an unpaid invoice. Increments reminder count and updates last_reminder_at.',
+    title: 'Record Payment Reminder',
+    description: 'Record that a payment reminder has been issued for an unpaid invoice. Increments reminder_count, sets last_reminder_at, and advances draft → sent. Returns the generated reminder message (custom or default) so the caller can relay it through their preferred channel — this tool itself does not send email; use invoice_send for actual delivery. Safely refuses to remind on already-paid invoices.',
     inputSchema: z.object({
-      invoice_id: z.string().describe('The invoice ID'),
-      message: z.string().optional().describe('Custom reminder message'),
+      invoice_id: z.string().uuid().describe('UUID of the invoice to remind'),
+      message: z.string().optional().describe('Custom reminder body; default is a friendly message referencing invoice number, amount, and due date'),
     }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   async ({ invoice_id, message }) => {
     try {
@@ -277,10 +282,11 @@ server.registerTool(
   'invoice_risk',
   {
     title: 'Assess Payment Risk',
-    description: 'Predict the late payment risk for an invoice (0-100). Analyzes invoice amount, client history, due date proximity, and reminder history. Returns risk level, factors, and recommended action.',
+    description: 'Predict late-payment risk for a specific invoice on a 0-100 scale. The model combines invoice amount (relative to client average), client payment history (avg_days_to_payment, late_payment_count), days remaining until due date, and prior reminder_count. Returns {risk_score (0-100), risk_level ("low"|"medium"|"high"|"critical"), factors (array of {factor, impact, detail}), recommended_action (string), next_reminder_date (ISO string or null)}. Use for prioritizing collection effort on high-value invoices.',
     inputSchema: z.object({
-      invoice_id: z.string().describe('The invoice ID to assess'),
+      invoice_id: z.string().uuid().describe('UUID of the invoice to assess'),
     }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ invoice_id }) => {
     try {
@@ -309,7 +315,7 @@ server.registerTool(
   'cashflow_report',
   {
     title: 'Cash Flow Report',
-    description: 'Generate a cash flow summary: total invoiced, collected, outstanding, overdue, collection rate, average days to payment, 30-day projection, breakdown by status and client.',
+    description: 'Generate a portfolio-wide cash flow summary across all invoices. Returns {period, total_invoiced, total_collected, total_outstanding, total_overdue, collection_rate (percent), avg_days_to_payment (or null if no paid history), projected_income_30d (forecast based on due dates and historical pay rate), breakdown_by_status, breakdown_by_client}. Takes no input — always reports on the current full dataset. Ideal for dashboards and monthly close.',
     inputSchema: z.object({}),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -342,13 +348,14 @@ server.registerTool(
   'payment_reconcile',
   {
     title: 'Reconcile Payment',
-    description: 'Match a payment from Stripe or PayPal to an invoice by amount and client email. Auto-marks the invoice as paid if amounts match.',
+    description: 'Match an incoming external payment (e.g. Stripe webhook, PayPal IPN, bank transfer) to an open invoice. Matching rule: the payer_email must equal the invoice client_email (case-insensitive) AND the payment_amount must equal the invoice amount_due within one cent. On match the invoice is marked paid, amount_paid/amount_due are updated, and client payment_history is recomputed exactly like invoice_mark_paid. Returns a reconciliation message on match or a "no match" message otherwise (no error). If multiple invoices match, the first one is reconciled.',
     inputSchema: z.object({
-      payment_amount: z.number().min(0.01).describe('The payment amount received'),
-      payer_email: z.string().email().describe('Email of the payer'),
-      payment_method: PaymentMethodSchema.optional(),
-      reference: z.string().optional().describe('External payment reference/ID'),
+      payment_amount: z.number().positive().describe('Amount received from the payer, in the invoice currency'),
+      payer_email: z.string().email().describe('Email of the payer (matched against invoice client_email, case-insensitive)'),
+      payment_method: PaymentMethodSchema.optional().describe('Payment channel (stripe|paypal|bank_transfer|etc.)'),
+      reference: z.string().optional().describe('External payment reference or transaction ID for your records'),
     }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   async ({ payment_amount, payer_email, payment_method, reference }) => {
     try {
@@ -519,7 +526,7 @@ async function main() {
     const httpServer = createServer(async (req, res) => {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', version: '1.0.0' }));
+        res.end(JSON.stringify({ status: 'ok', server: 'invoiceflow-mcp', version: SERVER_VERSION }));
         return;
       }
       if ((req.method === 'POST' || req.method === 'GET' || req.method === 'DELETE') && req.url === '/mcp') {
@@ -541,12 +548,12 @@ async function main() {
       res.end('Not Found');
     });
     httpServer.listen(port, () => {
-      console.error(`InvoiceFlow MCP Server v1.0.0 running on HTTP port ${port}`);
+      console.error(`InvoiceFlow MCP Server v${SERVER_VERSION} running on HTTP port ${port}`);
     });
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('InvoiceFlow MCP Server v1.0.0 running on stdio');
+    console.error(`InvoiceFlow MCP Server v${SERVER_VERSION} running on stdio`);
   }
 }
 
