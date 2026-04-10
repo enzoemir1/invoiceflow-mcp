@@ -17,7 +17,7 @@ import { generateCashflowReport } from './services/cashflow.js';
 import { storage } from './services/storage.js';
 import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js';
 
-const SERVER_VERSION = '1.3.1';
+const SERVER_VERSION = '1.3.2';
 
 const server = new McpServer({
   name: 'invoiceflow-mcp',
@@ -29,7 +29,7 @@ server.registerTool(
   'client_manage',
   {
     title: 'Manage Client',
-    description: 'Create or upsert a client record used by invoice_create. Accepts name, email, company, address, phone, tax_id, and default_currency. Returns the stored client object including the generated id (UUID), created_at, and an empty payment_history that will be populated as invoices are paid. If a client with the same email already exists, the existing record is returned unchanged — safe to call repeatedly.',
+    description: 'Create or upsert a client record used by invoice_create. Accepts name, email, company, address, city, country, tax_id, phone, default_currency ("USD"|"EUR"|"GBP"|...) and notes. Returns the stored client object including the generated id (UUID), an empty payment_history (populated as invoices are paid), and timestamps. Safe to call repeatedly: if a client with the same email already exists, the existing record is returned unchanged.',
     inputSchema: ClientCreateInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -51,7 +51,7 @@ server.registerTool(
   'invoice_create',
   {
     title: 'Create Invoice',
-    description: 'Create a new invoice for an existing client. Input: client_id (UUID), line_items (array of {description, quantity, unit_price, tax_rate?}), due_date (ISO), currency, optional discount_percent and notes. Auto-calculates subtotal, tax, discount, and total; generates a sequential invoice_number in format INV-YYYY-NNNN; sets status="draft". Returns the full invoice object ready for invoice_send.',
+    description: 'Create a new invoice for an existing client. Required: client_id (UUID) and line_items (non-empty array of {description, quantity, unit_price, tax_rate?, discount_percent?} — tax and discount are per-line). Optional: currency (defaults to the client\'s default_currency then USD), issue_date (YYYY-MM-DD or full ISO, defaults to today), due_date (same format, defaults to issue_date + 30 days), notes, and terms. Auto-calculates subtotal, discount_total, tax_total, and total; generates a sequential invoice_number in format INV-YYYY-NNNN; sets status="draft". Returns the full invoice object ready for invoice_send.',
     inputSchema: InvoiceCreateInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },

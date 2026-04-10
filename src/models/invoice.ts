@@ -50,12 +50,42 @@ export const ClientSchema = z.object({
   country: z.string().optional(),
   tax_id: z.string().optional(),
   phone: z.string().optional(),
+  default_currency: CurrencySchema.optional(),
   notes: z.string().optional(),
   payment_history: PaymentHistorySchema.optional(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
 export type Client = z.infer<typeof ClientSchema>;
+
+/**
+ * Flexible date input: accepts either a date-only string (YYYY-MM-DD)
+ * or a full ISO-8601 datetime. Normalises to a full datetime string so
+ * downstream code can rely on the strict `.datetime()` format everywhere
+ * else. This is deliberately permissive because humans (and LLMs)
+ * typically think of invoice dates as "2026-04-15", not
+ * "2026-04-15T00:00:00.000Z".
+ */
+export const FlexibleDateSchema = z
+  .string()
+  .refine(
+    (val) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return true;
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) {
+        return !Number.isNaN(new Date(val).getTime());
+      }
+      return false;
+    },
+    'Expected YYYY-MM-DD date or full ISO-8601 datetime',
+  )
+  .transform((val) => {
+    // Append T00:00:00.000Z for date-only strings; otherwise round-trip
+    // the datetime through Date to normalise zero-offset / trailing Z.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      return `${val}T00:00:00.000Z`;
+    }
+    return new Date(val).toISOString();
+  });
 
 /** Full invoice representation. */
 export const InvoiceSchema = z.object({
@@ -91,7 +121,7 @@ export type Invoice = z.infer<typeof InvoiceSchema>;
 /** Input for creating a new invoice. */
 export const InvoiceCreateInputSchema = z.object({
   client_id: z.string().uuid(),
-  currency: CurrencySchema.default('USD'),
+  currency: CurrencySchema.optional(),
   line_items: z.array(
     z.object({
       description: z.string(),
@@ -101,8 +131,8 @@ export const InvoiceCreateInputSchema = z.object({
       discount_percent: z.number().min(0).max(100).optional(),
     })
   ).min(1),
-  issue_date: z.string().datetime().optional(),
-  due_date: z.string().datetime().optional(),
+  issue_date: FlexibleDateSchema.optional(),
+  due_date: FlexibleDateSchema.optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
 });
@@ -124,7 +154,7 @@ export type InvoiceListInput = z.infer<typeof InvoiceListInputSchema>;
 
 /** Input for creating a new client. */
 export const ClientCreateInputSchema = z.object({
-  name: z.string(),
+  name: z.string().min(1),
   email: z.string().email(),
   company: z.string().optional(),
   address: z.string().optional(),
@@ -132,6 +162,7 @@ export const ClientCreateInputSchema = z.object({
   country: z.string().optional(),
   tax_id: z.string().optional(),
   phone: z.string().optional(),
+  default_currency: CurrencySchema.optional(),
   notes: z.string().optional(),
 });
 export type ClientCreateInput = z.infer<typeof ClientCreateInputSchema>;

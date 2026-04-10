@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Invoice, InvoiceCreateInput, LineItem } from '../models/invoice.js';
-import { storage } from '../services/storage.js';
+import { storage as defaultStorage, Storage } from '../services/storage.js';
 import { NotFoundError, validateUUID } from '../utils/errors.js';
 
 function computeLineItem(input: {
@@ -28,7 +28,8 @@ function computeLineItem(input: {
   };
 }
 
-export async function createInvoice(input: InvoiceCreateInput): Promise<Invoice> {
+export async function createInvoice(input: InvoiceCreateInput, store?: Storage): Promise<Invoice> {
+  const storage = store ?? defaultStorage;
   validateUUID(input.client_id, 'client');
 
   const client = await storage.getClientById(input.client_id);
@@ -52,8 +53,13 @@ export async function createInvoice(input: InvoiceCreateInput): Promise<Invoice>
   const total = Math.round((subtotal - discountTotal + taxTotal) * 100) / 100;
 
   const now = new Date();
+  // issue_date and due_date come pre-normalised to ISO datetime by
+  // FlexibleDateSchema; if the caller passes only an issue_date we
+  // default due_date to issue_date + 30 days so the two stay coherent.
   const issueDate = input.issue_date ?? now.toISOString();
-  const dueDate = input.due_date ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const dueDate =
+    input.due_date ??
+    new Date(new Date(issueDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const invoiceNumber = await storage.nextInvoiceNumber();
 
   const invoice: Invoice = {
@@ -63,7 +69,7 @@ export async function createInvoice(input: InvoiceCreateInput): Promise<Invoice>
     client_name: client.name,
     client_email: client.email,
     status: 'draft',
-    currency: input.currency ?? 'USD',
+    currency: input.currency ?? client.default_currency ?? 'USD',
     line_items: lineItems,
     subtotal: Math.round(subtotal * 100) / 100,
     tax_total: Math.round(taxTotal * 100) / 100,
