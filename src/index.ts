@@ -14,15 +14,48 @@ import { createClient } from './tools/client.js';
 import { generateInvoicePDF } from './services/pdf-generator.js';
 import { assessInvoiceRisk } from './services/risk-model.js';
 import { generateCashflowReport } from './services/cashflow.js';
+import { seedDemoData } from './services/demo-seed.js';
 import { storage } from './services/storage.js';
 import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js';
 
-const SERVER_VERSION = '1.3.2';
+const SERVER_VERSION = '1.4.0';
 
 const server = new McpServer({
   name: 'invoiceflow-mcp',
   version: SERVER_VERSION,
 });
+
+// ━━━ TOOL: invoice_demo_seed ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+server.registerTool(
+  'invoice_demo_seed',
+  {
+    title: 'Seed Demo Data',
+    description: 'Populate the store with a realistic demo dataset: 8 clients across 5 archetypes (on-time, late-payer, high-value, new, chronic-late) and 25-45 invoices spanning the last 6 months (paid, sent, and overdue). Every invoice has line items, tax, payment history, and reminder metadata. Use this to evaluate InvoiceFlow via MCP Inspector without real Stripe, SendGrid, or PayPal credentials — invoice_list, cashflow_report, invoice_risk, and payment_reconcile all return meaningful results against the returned ids. Safe to call multiple times; each call appends a fresh batch with unique UUIDs. Returns counts plus sample_invoice_ids you can feed straight into invoice_risk or invoice_mark_paid.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  async () => {
+    try {
+      const result = await seedDemoData();
+      const lines = [
+        `Seeded demo data:`,
+        `  Clients: ${result.clients}`,
+        `  Invoices: ${result.invoices} (${result.paid_invoices} paid, ${result.overdue_invoices} overdue)`,
+        `  Total invoiced: ${result.total_invoiced.toFixed(2)}`,
+        `  Total collected: ${result.total_collected.toFixed(2)}`,
+        ``,
+        `Sample invoice ids (use with invoice_risk, invoice_mark_paid):`,
+        ...result.sample_invoice_ids.map((id) => `  - ${id}`),
+      ];
+      return {
+        content: [{ type: 'text' as const, text: lines.join('\n') }],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    } catch (error) {
+      return handleToolError(error);
+    }
+  }
+);
 
 // ━━━ TOOL: client_manage ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 server.registerTool(
@@ -506,6 +539,17 @@ server.registerPrompt(
     messages: [{
       role: 'assistant' as const,
       content: { type: 'text' as const, text: 'Let me prepare your cash flow summary.\n\n1. I\'ll run `cashflow_report` for current period metrics\n2. Analyze collection rate trends\n3. Identify clients with highest outstanding balances\n4. Project next 30 days of expected income\n\nReady to generate the report?' },
+    }],
+  }),
+);
+
+server.registerPrompt(
+  'new_invoice_workflow',
+  { title: 'New Invoice Workflow', description: 'Guide through creating and sending a new invoice end-to-end — from client selection to payment risk assessment and delivery. Covers client_manage, invoice_create, invoice_risk, and invoice_send in a single coherent flow.' },
+  async () => ({
+    messages: [{
+      role: 'assistant' as const,
+      content: { type: 'text' as const, text: 'Let\'s create and send a new invoice.\n\n1. Identify the client — I\'ll check `clients_list` resource, or use `client_manage` to add a new one (upsert-safe by email)\n2. Build the invoice with `invoice_create` — provide line items (description, quantity, unit_price, optional tax_rate/discount_percent), currency will default to the client\'s default_currency, due_date defaults to issue_date + 30 days\n3. Assess payment risk with `invoice_risk` so we know whether to flag this one for proactive follow-up\n4. Deliver with `invoice_send` — generates the PDF and emails via SendGrid if SENDGRID_API_KEY is configured\n\nShare the client email and line items and I\'ll run the full flow.' },
     }],
   }),
 );
