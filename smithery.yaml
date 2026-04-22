@@ -1,0 +1,24 @@
+# Smithery manifest — InvoiceFlow MCP
+# InvoiceFlow works fully offline for invoice creation, risk scoring, and cash
+# flow reporting. SendGrid is only needed for outbound email delivery via
+# invoice_send / invoice_remind.
+
+runtime: "container"
+
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "./"
+
+startCommand:
+  type: "http"
+
+configSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    sendgridApiKey:
+      type: string
+      title: SendGrid API Key
+      description: "Optional. Enables outbound email delivery via invoice_send and invoice_remind. Without it, those tools return a stub success response."
+
+exampleConfig: {}

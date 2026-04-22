@@ -1,24 +1,26 @@
 {
   "name": "invoiceflow-mcp",
   "displayName": "InvoiceFlow MCP",
-  "description": "AI invoice automation with PDF generation, late payment risk prediction, payment reminders via SendGrid, Stripe/PayPal reconciliation, and cash flow analytics. 10 tools, 4 resources.",
-  "version": "1.2.0",
+  "description": "AI invoice automation with PDF generation (pdf-lib), late payment risk prediction, smart reminder escalation via SendGrid, platform-agnostic payment reconciliation (CSV/webhook/manual), and cash flow analytics. 10 tools, 4 resources, 3 prompts.",
+  "version": "1.4.0",
+  "license": "MIT",
+  "repository": "https://github.com/enzoemir1/invoiceflow-mcp",
   "tools": [
-    { "name": "client_manage", "description": "Create or update client profiles" },
-    { "name": "invoice_create", "description": "Generate invoices with line items, tax, and discounts" },
-    { "name": "invoice_list", "description": "Filter and paginate invoices" },
-    { "name": "invoice_send", "description": "Email invoices via SendGrid" },
-    { "name": "invoice_mark_paid", "description": "Mark partial or full payment" },
-    { "name": "invoice_remind", "description": "Send escalating payment reminders" },
-    { "name": "invoice_risk", "description": "AI payment risk prediction (0-100)" },
-    { "name": "cashflow_report", "description": "Cash flow analytics with 30-day projection" },
-    { "name": "payment_reconcile", "description": "Match Stripe/PayPal payments to invoices" },
-    { "name": "config_scoring", "description": "Configure risk scoring parameters" }
+    { "name": "invoice_demo_seed", "description": "Seed demo invoices + clients for evaluation without credentials" },
+    { "name": "client_manage", "description": "Create or update client profiles with payment history" },
+    { "name": "invoice_create", "description": "Generate invoices with line items, tax, discounts, 10 currencies; auto-sequential numbering (INV-YYYY-NNNN)" },
+    { "name": "invoice_list", "description": "Filter by status, client, amount range, date, overdue; pagination" },
+    { "name": "invoice_send", "description": "Email invoice PDF via SendGrid (requires SENDGRID_API_KEY)" },
+    { "name": "invoice_mark_paid", "description": "Mark partial or full payment, updates client payment history" },
+    { "name": "invoice_remind", "description": "Send escalating payment reminder with risk-tier messaging" },
+    { "name": "invoice_risk", "description": "AI late-payment risk prediction (0-100) with factor breakdown" },
+    { "name": "cashflow_report", "description": "Cash flow analytics: collection rate, 30-day projection, client breakdown" },
+    { "name": "payment_reconcile", "description": "Match incoming payment amounts to invoices by payer email + amount" }
   ],
   "resources": [
-    { "uri": "invoices://recent", "description": "Latest invoices" },
-    { "uri": "invoices://overdue", "description": "Overdue invoices" },
-    { "uri": "invoices://cashflow", "description": "Cash flow summary" },
-    { "uri": "invoices://clients", "description": "Client directory" }
+    { "uri": "invoices://pending", "description": "All unpaid invoices" },
+    { "uri": "invoices://overdue", "description": "Invoices past due date" },
+    { "uri": "invoices://stats", "description": "Monthly cash flow summary" },
+    { "uri": "clients://list", "description": "All clients with payment history" }
   ]
 }
