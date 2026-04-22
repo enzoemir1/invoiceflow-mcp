@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 [![MCP](https://img.shields.io/badge/MCP-1.29-2A9D8F.svg)](https://modelcontextprotocol.io/)
 
-InvoiceFlow creates professional PDF invoices, predicts late payment risk using AI, auto-sends reminders, reconciles payments from Stripe/PayPal, and tracks your cash flow -- all through the MCP protocol.
+InvoiceFlow creates professional PDF invoices, predicts late payment risk using AI, auto-sends reminders, matches incoming payments to invoices, and tracks your cash flow -- all through the MCP protocol.
 
 ---
 
@@ -15,7 +15,7 @@ InvoiceFlow creates professional PDF invoices, predicts late payment risk using 
 - **Professional PDF invoices** with line items, tax, discounts, multi-currency (10 currencies)
 - **AI risk prediction** (0-100) based on invoice amount, client history, due date, reminder history
 - **Smart reminders** with escalation based on risk level
-- **Payment reconciliation** matching Stripe/PayPal payments to invoices by amount + email
+- **Payment reconciliation** matching incoming payments to invoices by amount + payer email (platform-agnostic — works with manually-entered or webhook-provided payment data)
 - **Cash flow reporting** with collection rate, projected income, client breakdown
 - **Client management** with automatic payment history tracking
 - **Sequential invoice numbers** (INV-2026-0001, INV-2026-0002, ...)
@@ -122,12 +122,13 @@ cp .env.example .env
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SENDGRID_API_KEY` | For email | Send invoices and reminders via SendGrid |
-| `STRIPE_API_KEY` | For Stripe | Reconcile payments from Stripe |
-| `PAYPAL_CLIENT_ID` | For PayPal | Reconcile payments from PayPal |
-| `PAYPAL_CLIENT_SECRET` | For PayPal | PayPal API authentication |
+| `SENDGRID_API_KEY` | For email sending | Send invoices and reminders via SendGrid |
 
-> All integrations are optional. InvoiceFlow works fully offline for invoice creation, risk scoring, and cash flow reporting.
+> SendGrid is optional. InvoiceFlow works fully offline for invoice creation, risk scoring, cash flow reporting, and reconciliation. Add SendGrid when you want outbound email delivery.
+
+### Roadmap: Stripe & PayPal live sync
+
+The `payment_reconcile` tool currently matches amounts you provide (from a CSV, a webhook, or manual entry) against stored invoices. Direct Stripe and PayPal API integration with webhook listeners is planned for v2.0 — see [issues](https://github.com/enzoemir1/invoiceflow-mcp/issues) for progress.
 
 ## Usage Examples
 
@@ -181,8 +182,8 @@ USD, EUR, GBP, CAD, AUD, JPY, CHF, TRY, BRL, INR
 | Tier | Price | Invoices/month | Features |
 |------|-------|----------------|----------|
 | Free | $0 | 5 | Basic PDF invoices |
-| Pro | $15/mo | 100 | AI risk, reminders, Stripe sync |
-| Business | $30/mo | Unlimited | Multi-currency, reconciliation, cash flow |
+| Pro | $12/mo | 100 | AI risk scoring, smart reminders, reconciliation |
+| Business | $29/mo | 500 | Multi-currency, cash flow reporting, priority support |
 
 Available on [MCPize Marketplace](https://mcpize.com).
 
