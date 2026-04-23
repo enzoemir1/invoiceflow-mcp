@@ -1,0 +1,48 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["enzoemir1"],
+  "name": "invoiceflow-mcp",
+  "description": "AI invoice automation with PDF generation, AI late-payment risk scoring, smart reminder escalation via SendGrid, and platform-agnostic payment reconciliation. 10 tools, 4 resources, 3 prompts.",
+  "tools": {
+    "invoice_demo_seed": {
+      "enabled": true,
+      "description": "Seed demo clients + invoices (various payment statuses, risk tiers, overdue states) so every downstream tool returns meaningful output without SendGrid / Stripe credentials."
+    },
+    "client_manage": {
+      "enabled": true,
+      "description": "Create or update a client profile. Fields: name, email, phone, address, tax_id, payment_terms (net 15/30/60), currency. Tracks aggregate payment history (on-time count, late count, avg delay) used by invoice_risk."
+    },
+    "invoice_create": {
+      "enabled": true,
+      "description": "Generate a new invoice with line items, tax, discounts, due date, and 10-currency support (USD/EUR/GBP/CAD/AUD/JPY/CHF/TRY/BRL/INR). Auto-numbers as INV-YYYY-NNNN. Returns the Invoice record plus rendered PDF buffer."
+    },
+    "invoice_list": {
+      "enabled": true,
+      "description": "Filter and paginate invoices by status, client_id, amount range, date range, or overdue flag. Pagination: limit (default 20, max 100) and offset. Sorted by created_at desc."
+    },
+    "invoice_send": {
+      "enabled": true,
+      "description": "Email invoice PDF to client via SendGrid (requires SENDGRID_API_KEY). Updates status to sent and records sent_at timestamp. Without SendGrid, returns a stub success so flows stay testable."
+    },
+    "invoice_mark_paid": {
+      "enabled": true,
+      "description": "Mark an invoice as paid (full or partial). Updates amount_paid, paid_at, and rolls stats into the client's payment history (on-time/late delta based on paid_at vs due_date)."
+    },
+    "invoice_remind": {
+      "enabled": true,
+      "description": "Send an escalating payment reminder — gentle / firm / final — based on days overdue and the risk tier from invoice_risk. Increments reminder_count. Supports custom message override."
+    },
+    "invoice_risk": {
+      "enabled": true,
+      "description": "AI-powered late-payment risk score (0-100) using 4 weighted factors: invoice amount (20%), client history (35%), due date proximity (30%), prior reminders (15%). Returns risk_level (low/medium/high), factor breakdown, recommended action, next reminder date."
+    },
+    "cashflow_report": {
+      "enabled": true,
+      "description": "Cash flow analytics: total invoiced, collected, outstanding, overdue, collection rate %, 30-day projection, per-client breakdown. Date-range filterable."
+    },
+    "payment_reconcile": {
+      "enabled": true,
+      "description": "Match an incoming payment (amount + payer email, optionally payment_method label and reference) to the most likely invoice. Auto-marks as paid when confidence is high. Platform-agnostic — works with CSV imports, webhook payloads, or manual entry."
+    }
+  }
+}
