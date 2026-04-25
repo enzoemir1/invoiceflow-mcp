@@ -18,7 +18,7 @@ import { seedDemoData } from './services/demo-seed.js';
 import { storage } from './services/storage.js';
 import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js';
 
-const SERVER_VERSION = '1.4.0';
+const SERVER_VERSION = '1.4.1';
 
 const server = new McpServer({
   name: 'invoiceflow-mcp',

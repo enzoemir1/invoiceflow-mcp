@@ -79,8 +79,6 @@ export const FlexibleDateSchema = z
     'Expected YYYY-MM-DD date or full ISO-8601 datetime',
   )
   .transform((val) => {
-    // Append T00:00:00.000Z for date-only strings; otherwise round-trip
-    // the datetime through Date to normalise zero-offset / trailing Z.
     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
       return `${val}T00:00:00.000Z`;
     }
@@ -120,50 +118,50 @@ export type Invoice = z.infer<typeof InvoiceSchema>;
 
 /** Input for creating a new invoice. */
 export const InvoiceCreateInputSchema = z.object({
-  client_id: z.string().uuid(),
-  currency: CurrencySchema.optional(),
+  client_id: z.string().uuid().describe('UUID of the client this invoice is billed to. Must exist (created via client_manage). The stored client_email and client_name are snapshotted into the invoice at create time.'),
+  currency: CurrencySchema.optional().describe('ISO 4217 code for the invoice. One of: USD, EUR, GBP, CAD, AUD, JPY, CHF, TRY, BRL, INR. Defaults to the client\'s default_currency, then USD.'),
   line_items: z.array(
     z.object({
-      description: z.string(),
-      quantity: z.number().min(0.01),
-      unit_price: z.number().min(0),
-      tax_rate: z.number().min(0).max(100).optional(),
-      discount_percent: z.number().min(0).max(100).optional(),
+      description: z.string().describe('Free-text description of the product or service. Appears verbatim on the PDF.'),
+      quantity: z.number().min(0.01).describe('Number of units billed. Must be > 0. Decimals allowed for hourly billing (e.g. 1.5 hours).'),
+      unit_price: z.number().min(0).describe('Price per unit before tax and discount, in the invoice currency. Must be ≥ 0.'),
+      tax_rate: z.number().min(0).max(100).optional().describe('Per-line tax percentage (0–100). E.g. 21 for Spanish IVA, 8.875 for NYC sales tax. Defaults to 0.'),
+      discount_percent: z.number().min(0).max(100).optional().describe('Per-line discount percentage (0–100). Applied before tax. Defaults to 0.'),
     })
-  ).min(1),
-  issue_date: FlexibleDateSchema.optional(),
-  due_date: FlexibleDateSchema.optional(),
-  notes: z.string().optional(),
-  terms: z.string().optional(),
+  ).min(1).describe('Non-empty array of line items. The invoice subtotal, tax_total, discount_total, and total are auto-computed by summing each item\'s (quantity × unit_price), then per-line discount, then per-line tax.'),
+  issue_date: FlexibleDateSchema.optional().describe('Invoice issue date — accepts either YYYY-MM-DD or full ISO-8601. Defaults to today (UTC).'),
+  due_date: FlexibleDateSchema.optional().describe('Payment due date — same format as issue_date. Defaults to issue_date + 30 days. Used by invoice_risk and overdue detection.'),
+  notes: z.string().optional().describe('Free-text notes shown on the PDF (e.g. payment instructions, thank-you).'),
+  terms: z.string().optional().describe('Free-text terms section on the PDF (e.g. "Net 30. Late fee 1.5%/mo.").'),
 });
 export type InvoiceCreateInput = z.infer<typeof InvoiceCreateInputSchema>;
 
 /** Input for listing/filtering invoices. */
 export const InvoiceListInputSchema = z.object({
-  status: InvoiceStatusSchema.optional(),
-  client_id: z.string().uuid().optional(),
-  min_amount: z.number().optional(),
-  max_amount: z.number().optional(),
-  from_date: z.string().datetime().optional(),
-  to_date: z.string().datetime().optional(),
-  overdue_only: z.boolean().default(false),
-  limit: z.number().int().min(1).max(100).default(20),
-  offset: z.number().int().min(0).default(0),
+  status: InvoiceStatusSchema.optional().describe('Restrict to one lifecycle state: draft, sent, viewed, paid, overdue, cancelled, refunded.'),
+  client_id: z.string().uuid().optional().describe('Restrict to invoices billed to this client UUID.'),
+  min_amount: z.number().optional().describe('Inclusive lower bound on total amount (any currency, no FX conversion).'),
+  max_amount: z.number().optional().describe('Inclusive upper bound on total amount.'),
+  from_date: z.string().datetime().optional().describe('Filter to invoices with issue_date ≥ this ISO-8601 datetime.'),
+  to_date: z.string().datetime().optional().describe('Filter to invoices with issue_date ≤ this ISO-8601 datetime.'),
+  overdue_only: z.boolean().default(false).describe('When true, returns only invoices whose due_date is past and status is not paid/cancelled/refunded. Defaults to false.'),
+  limit: z.number().int().min(1).max(100).default(20).describe('Page size, 1–100. Defaults to 20.'),
+  offset: z.number().int().min(0).default(0).describe('Number of results to skip for pagination. Defaults to 0.'),
 });
 export type InvoiceListInput = z.infer<typeof InvoiceListInputSchema>;
 
 /** Input for creating a new client. */
 export const ClientCreateInputSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  company: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().optional(),
-  tax_id: z.string().optional(),
-  phone: z.string().optional(),
-  default_currency: CurrencySchema.optional(),
-  notes: z.string().optional(),
+  name: z.string().min(1).describe('Display name shown on invoices and reports. Required.'),
+  email: z.string().email().describe('Primary billing email. Used as the dedup key — calling client_manage twice with the same email returns the existing record. Also used by payment_reconcile to match incoming payments.'),
+  company: z.string().optional().describe('Optional legal company name (printed on the invoice when set).'),
+  address: z.string().optional().describe('Optional billing street address.'),
+  city: z.string().optional().describe('Optional city.'),
+  country: z.string().optional().describe('Optional country (full name or ISO code — printed verbatim).'),
+  tax_id: z.string().optional().describe('Optional VAT / tax ID (e.g. EU VAT number, US EIN). Printed on PDFs that need it.'),
+  phone: z.string().optional().describe('Optional phone number.'),
+  default_currency: CurrencySchema.optional().describe('Default invoice currency for this client. Used when invoice_create omits currency.'),
+  notes: z.string().optional().describe('Internal notes about this client (not printed on invoices).'),
 });
 export type ClientCreateInput = z.infer<typeof ClientCreateInputSchema>;
 

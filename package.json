@@ -1,6 +1,6 @@
 {
   "name": "invoiceflow-mcp-server",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "mcpName": "io.github.enzoemir1/invoiceflow-mcp",
   "description": "AI-powered invoice automation for MCP. Create invoices, predict late payments, auto-remind, reconcile payments, and track cash flow.",
   "repository": {
