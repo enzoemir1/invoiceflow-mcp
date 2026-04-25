@@ -21,7 +21,7 @@ import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js'
 import { homedir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 
-const SERVER_VERSION = '1.4.1';
+const SERVER_VERSION = '1.4.2';
 
 const LICENSE_CONFIG: LicenseConfig = {
   productId: 1004790,
