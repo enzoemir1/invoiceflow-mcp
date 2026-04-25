@@ -211,6 +211,41 @@ npm test           # Run all tests
 npx vitest --watch # Watch mode
 ```
 
+## Pro License
+
+InvoiceFlow ships in **Free mode** — `invoice_demo_seed`, `client_manage`, `invoice_create`, `invoice_list`, `invoice_mark_paid`, and `invoice_remind` are open. The following tools require a **Pro license**:
+
+- `invoice_send` — generate PDF + SendGrid email delivery
+- `invoice_risk` — late-payment risk prediction
+- `payment_reconcile` — match Stripe/PayPal/bank payments to invoices
+- `cashflow_report` — portfolio-wide cash flow + 30-day projection
+
+**Buy a Pro License (€12, lifetime, 3 machines):** https://automatiabcn.lemonsqueezy.com/buy/2d439c05-f463-4137-8883-950e8ee1112d
+
+Or get the **[Indie MCP Stack Bundle](https://automatiabcn.lemonsqueezy.com/buy/55e932fd-8319-47f0-8e95-0b86a29f2617)** (€69, all 4 servers).
+
+```bash
+export LEMONSQUEEZY_LICENSE_KEY=YOUR-KEY-HERE
+```
+
+Or in your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "invoiceflow-mcp": {
+      "command": "npx",
+      "args": ["-y", "invoiceflow-mcp-server"],
+      "env": { "LEMONSQUEEZY_LICENSE_KEY": "YOUR-KEY-HERE" }
+    }
+  }
+}
+```
+
+Validation is cached locally for 24 h — fully offline-capable after first run.
+
+---
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.

@@ -16,9 +16,19 @@ import { assessInvoiceRisk } from './services/risk-model.js';
 import { generateCashflowReport } from './services/cashflow.js';
 import { seedDemoData } from './services/demo-seed.js';
 import { storage } from './services/storage.js';
+import { ensureProOrReject, type LicenseConfig } from './services/license.js';
 import { handleToolError, validateUUID, NotFoundError } from './utils/errors.js';
+import { homedir } from 'node:os';
+import { join as pathJoin } from 'node:path';
 
 const SERVER_VERSION = '1.4.1';
+
+const LICENSE_CONFIG: LicenseConfig = {
+  productId: 1004790,
+  bundleProductId: 1004800,
+  cacheDir: pathJoin(homedir(), '.config', 'invoiceflow-mcp'),
+  buyUrl: 'https://automatiabcn.lemonsqueezy.com/buy/2d439c05-f463-4137-8883-950e8ee1112d',
+};
 
 const server = new McpServer({
   name: 'invoiceflow-mcp',
@@ -140,6 +150,8 @@ server.registerTool(
   },
   async ({ invoice_id, message }) => {
     try {
+      const reject = await ensureProOrReject(LICENSE_CONFIG, 'invoice_send');
+      if (reject) return reject;
       validateUUID(invoice_id, 'invoice');
       const invoice = await storage.getInvoiceById(invoice_id);
       if (!invoice) throw new NotFoundError('Invoice', invoice_id);
@@ -323,6 +335,8 @@ server.registerTool(
   },
   async ({ invoice_id }) => {
     try {
+      const reject = await ensureProOrReject(LICENSE_CONFIG, 'invoice_risk');
+      if (reject) return reject;
       const assessment = await assessInvoiceRisk(invoice_id);
       const lines = [
         `Risk Assessment: ${assessment.risk_score}/100 (${assessment.risk_level.toUpperCase()})`,
@@ -354,6 +368,8 @@ server.registerTool(
   },
   async () => {
     try {
+      const reject = await ensureProOrReject(LICENSE_CONFIG, 'cashflow_report');
+      if (reject) return reject;
       const report = await generateCashflowReport();
       const lines = [
         `Cash Flow Report — ${report.period}`,
@@ -392,6 +408,8 @@ server.registerTool(
   },
   async ({ payment_amount, payer_email, payment_method, reference }) => {
     try {
+      const reject = await ensureProOrReject(LICENSE_CONFIG, 'payment_reconcile');
+      if (reject) return reject;
       const invoices = await storage.getAllInvoices();
       const matches = invoices.filter((inv) =>
         inv.client_email.toLowerCase() === payer_email.toLowerCase() &&
