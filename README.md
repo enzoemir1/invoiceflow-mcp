@@ -28,7 +28,7 @@ InvoiceFlow creates professional PDF invoices, predicts late payment risk using 
 ### Install from MCPize Marketplace
 
 1. Search for **InvoiceFlow MCP** on [mcpize.com](https://mcpize.com)
-2. Click **Install** and select your subscription tier
+2. Click **Install** — Free tools work immediately; unlock Pro with a €12 lifetime license (see [Pro License](#pro-license))
 3. Tools and resources are automatically available in any MCP-compatible client
 
 ### Build from Source
@@ -56,6 +56,9 @@ Add to your MCP client config:
 ---
 
 ## Tools
+
+### invoice_demo_seed
+Seed a realistic demo dataset — 8 clients across 5 archetypes (on-time, late-payer, high-value, new, chronic-late) and 25-45 invoices over the last 6 months — so every tool returns meaningful output without any credentials. Safe to call multiple times; each call appends a fresh batch with unique UUIDs. Returns counts plus `sample_invoice_ids`.
 
 ### client_manage
 Create a new client. Required before creating invoices.
@@ -179,13 +182,12 @@ USD, EUR, GBP, CAD, AUD, JPY, CHF, TRY, BRL, INR
 
 ## Pricing
 
-| Tier | Price | Invoices/month | Features |
-|------|-------|----------------|----------|
-| Free | $0 | 5 | Basic PDF invoices |
-| Pro | $12/mo | 100 | AI risk scoring, smart reminders, reconciliation |
-| Business | $29/mo | 500 | Multi-currency, cash flow reporting, priority support |
+| Tier | Price | Tools | Features |
+|------|-------|-------|----------|
+| Free | €0 | `invoice_demo_seed`, `client_manage`, `invoice_create`, `invoice_list`, `invoice_mark_paid`, `invoice_remind` | PDF invoices, multi-currency, client management, manual reminders |
+| Pro | **€12** lifetime | + `invoice_send`, `invoice_risk`, `payment_reconcile`, `cashflow_report` | AI risk scoring, SendGrid delivery, payment reconciliation, cash flow reporting |
 
-Available on [MCPize Marketplace](https://mcpize.com).
+One-time **€12** lifetime license (3 machines) — no subscription. See **[Pro License](#pro-license)** below to buy and activate.
 
 ---
 

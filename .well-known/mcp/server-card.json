@@ -2,7 +2,7 @@
   "name": "invoiceflow-mcp",
   "displayName": "InvoiceFlow MCP",
   "description": "AI invoice automation with PDF generation (pdf-lib), late payment risk prediction, smart reminder escalation via SendGrid, platform-agnostic payment reconciliation (CSV/webhook/manual), and cash flow analytics. 10 tools, 4 resources, 3 prompts.",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "license": "MIT",
   "repository": "https://github.com/enzoemir1/invoiceflow-mcp",
   "tools": [

@@ -1,6 +1,6 @@
 version: 1
 name: invoiceflow-mcp
-description: "AI-powered invoice automation. Create professional PDF invoices, predict late payment risk, auto-send reminders, reconcile Stripe/PayPal payments, and track cash flow."
+description: "AI-powered invoice automation. Create professional PDF invoices, predict late payment risk, auto-send reminders, reconcile payments by amount + payer email (CSV/webhook/manual), and track cash flow."
 runtime: typescript
 entry: src/index.ts
 
@@ -16,17 +16,19 @@ startCommand:
     PORT: "8080"
 
 secrets:
+  - name: LEMONSQUEEZY_LICENSE_KEY
+    required: false
+    description: "LemonSqueezy license key — unlocks Pro tools (invoice_send, invoice_risk, payment_reconcile, cashflow_report). Free mode without it."
   - name: SENDGRID_API_KEY
     required: false
     description: "SendGrid API key for sending invoices and reminders via email"
+  - name: SENDGRID_FROM_EMAIL
+    required: false
+    description: "Sender email used on outbound mail (default: noreply@invoiceflow.dev)"
+  - name: SENDGRID_FROM_NAME
+    required: false
+    description: "Sender display name used on outbound mail (default: InvoiceFlow)"
 
-credentials:
-  - name: STRIPE_API_KEY
-    required: false
-    description: "Your Stripe secret key for payment reconciliation"
-  - name: PAYPAL_CLIENT_ID
-    required: false
-    description: "Your PayPal client ID for payment reconciliation"
-  - name: PAYPAL_CLIENT_SECRET
-    required: false
-    description: "Your PayPal client secret for payment reconciliation"
+# Stripe/PayPal live API integration is v2.0 roadmap — not yet read by any code.
+# payment_reconcile matches amounts you provide (CSV/webhook/manual), so no
+# Stripe/PayPal credentials are required today.
