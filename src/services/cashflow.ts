@@ -16,9 +16,11 @@ export async function generateCashflowReport(store?: Storage): Promise<CashflowR
 
   const byStatus: Record<string, { count: number; total: number }> = {};
   const clientMap: Record<string, { client_name: string; outstanding: number; overdue: number }> = {};
+  const currencySet = new Set<string>();
 
   for (const inv of invoices) {
     totalInvoiced += inv.total;
+    if (inv.currency) currencySet.add(inv.currency);
 
     // Status aggregation
     if (!byStatus[inv.status]) byStatus[inv.status] = { count: 0, total: 0 };
@@ -82,6 +84,10 @@ export async function generateCashflowReport(store?: Storage): Promise<CashflowR
 
   return {
     period: currentMonth,
+    // Distinct currencies present across the portfolio. The monetary totals are
+    // a plain sum of invoice amounts and are NOT FX-converted, so when more than
+    // one currency is present the totals are only meaningful per-currency.
+    currencies: Array.from(currencySet).sort(),
     total_invoiced: Math.round(totalInvoiced * 100) / 100,
     total_collected: Math.round(totalCollected * 100) / 100,
     total_outstanding: Math.round(totalOutstanding * 100) / 100,

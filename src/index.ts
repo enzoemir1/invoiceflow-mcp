@@ -164,12 +164,14 @@ server.registerTool(
 
       // Email sending (if SendGrid key available)
       const sendgridKey = process.env.SENDGRID_API_KEY;
+      let emailSent = false;
+      let emailError: string | null = null;
       if (sendgridKey) {
         const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 15000);
         try {
-          await fetch('https://api.sendgrid.com/v3/mail/send', {
+          const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${sendgridKey}`,
@@ -192,15 +194,31 @@ server.registerTool(
             }),
             signal: controller.signal,
           }).finally(() => clearTimeout(timer));
+          // fetch only rejects on network errors, NOT on HTTP 4xx/5xx — so an
+          // invalid key or unverified sender returns a response we must inspect,
+          // otherwise we'd falsely report the invoice as "sent".
+          if (resp.ok) {
+            emailSent = true;
+          } else {
+            emailError = `SendGrid responded ${resp.status} ${resp.statusText}`;
+            console.error('[SendGrid error]', emailError);
+          }
         } catch (err) {
-          console.error('[SendGrid error]', err instanceof Error ? err.message : err);
+          emailError = err instanceof Error ? err.message : String(err);
+          console.error('[SendGrid error]', emailError);
         }
       }
+
+      const deliveryNote = emailSent
+        ? `Emailed to ${invoice.client_email}.`
+        : sendgridKey
+          ? `Email NOT delivered (${emailError ?? 'unknown error'}) — PDF is ready; retry once SendGrid is configured correctly.`
+          : `Prepared for ${invoice.client_email} (no SENDGRID_API_KEY set, so no email was sent).`;
 
       return {
         content: [{
           type: 'text' as const,
-          text: `Invoice ${invoice.invoice_number} ${sendgridKey ? 'sent to' : 'prepared for'} ${invoice.client_email}. Status updated to "sent". PDF generated (${pdfBytes.length} bytes).`,
+          text: `Invoice ${invoice.invoice_number} status updated to "sent". ${deliveryNote} PDF generated (${pdfBytes.length} bytes).`,
         }],
       };
     } catch (error) {
@@ -371,17 +389,25 @@ server.registerTool(
       const reject = await ensureProOrReject(LICENSE_CONFIG, 'cashflow_report');
       if (reject) return reject;
       const report = await generateCashflowReport();
+      // Prefix amounts with the portfolio currency code (e.g. "USD") rather than
+      // a hardcoded "$". When invoices span multiple currencies the totals are a
+      // raw, non-FX-converted sum, so we label them as "mixed" and warn.
+      const cur = report.currencies.length === 1 ? `${report.currencies[0]} ` : '';
+      const money = (n: number) => `${cur}${n.toFixed(2)}`;
       const lines = [
         `Cash Flow Report — ${report.period}`,
         '',
-        `Total Invoiced: $${report.total_invoiced.toFixed(2)}`,
-        `Collected: $${report.total_collected.toFixed(2)}`,
-        `Outstanding: $${report.total_outstanding.toFixed(2)}`,
-        `Overdue: $${report.total_overdue.toFixed(2)}`,
+        `Total Invoiced: ${money(report.total_invoiced)}`,
+        `Collected: ${money(report.total_collected)}`,
+        `Outstanding: ${money(report.total_outstanding)}`,
+        `Overdue: ${money(report.total_overdue)}`,
         `Collection Rate: ${report.collection_rate}%`,
         `Avg Days to Payment: ${report.avg_days_to_payment ?? 'N/A'}`,
-        `Projected Income (30d): $${report.projected_income_30d.toFixed(2)}`,
+        `Projected Income (30d): ${money(report.projected_income_30d)}`,
       ];
+      if (report.currencies.length > 1) {
+        lines.push('', `⚠ Amounts span ${report.currencies.length} currencies (${report.currencies.join(', ')}) and are summed without FX conversion — read per-currency.`);
+      }
       return {
         content: [{ type: 'text' as const, text: lines.join('\n') }],
         structuredContent: report as unknown as Record<string, unknown>,

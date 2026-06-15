@@ -191,6 +191,7 @@ export type RiskAssessment = z.infer<typeof RiskAssessmentSchema>;
 /** Cash flow summary for a given period. */
 export const CashflowReportSchema = z.object({
   period: z.string(),
+  currencies: z.array(z.string()),
   total_invoiced: z.number(),
   total_collected: z.number(),
   total_outstanding: z.number(),
