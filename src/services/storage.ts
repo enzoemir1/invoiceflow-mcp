@@ -53,7 +53,11 @@ export class Storage {
   }
 
   private async write<T>(filePath: string, data: T): Promise<void> {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    // Write to a temp file then rename — rename is atomic on POSIX, so a crash
+    // mid-write can never leave a half-written / corrupted JSON store behind.
+    const tmp = `${filePath}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
+    await fs.rename(tmp, filePath);
   }
 
   // ── Invoice number ────────────────────────────────────────────
